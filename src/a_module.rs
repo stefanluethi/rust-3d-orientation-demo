@@ -24,7 +24,7 @@ impl <LED, BUTTON> Stm32Io<LED, BUTTON> {
     }
 }
 
-impl <LED, BUTTON> AModule<LED, BUTTON> for Stm32Io<LED, BUTTON>
+impl <LED, BUTTON> AModule for Stm32Io<LED, BUTTON>
 where
     LED: OutputPin,
     BUTTON: InputPin,
