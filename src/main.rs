@@ -37,7 +37,7 @@ fn main() -> ! {
         // Create a delay abstraction based on SysTick
         let mut delay = hal::delay::Delay::new(cp.SYST, clocks);
 
-        let mut my_object : AModule = Stm32Io::new(led, button);
+        let mut my_object = Stm32Io::new(led, button);
 
         loop {
             my_object.do_something();

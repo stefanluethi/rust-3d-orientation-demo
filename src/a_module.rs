@@ -10,17 +10,13 @@ use stm32f4xx_hal::{prelude::*, stm32};
 use cortex_m;
 use cortex_m_rt::entry;
 
-pub struct Stm32Io<In, Out> {
-    led: Out,
-    button: In,
+pub struct Stm32Io<LED, BUTTON> {
+    led: LED,
+    button: BUTTON,
 }
 
-impl <Input, Output> Stm32Io<Input, Output>
-where
-    Input: InputPin,
-    Output: OutputPin,
-{
-    pub fn new(led: Output, button: Input) -> Self {
+impl <LED, BUTTON> Stm32Io<LED, BUTTON> {
+    pub fn new(led: LED, button: BUTTON) -> Self {
         Stm32Io {
             led,
             button
@@ -28,18 +24,11 @@ where
     }
 }
 
-impl <Input, Output> AModule for Stm32Io<Input, Output>
+impl <LED, BUTTON> AModule<LED, BUTTON> for Stm32Io<LED, BUTTON>
 where
-    Input: InputPin,
-    Output: OutputPin,
+    LED: OutputPin,
+    BUTTON: InputPin,
 {
-    // fn new(led: Output, button: Input) -> Self {
-    //     Stm32Io {
-    //         led,
-    //         button
-    //     }
-    // }
-
     fn do_something(&mut self) -> () {
 
         if match self.button.is_low() {
