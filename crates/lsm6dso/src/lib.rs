@@ -8,7 +8,7 @@ use core::fmt::{Debug};
 pub use accelerometer;
 use accelerometer::error::Error as AccelerometerError;
 use accelerometer::vector::{F32x3, I16x3};
-use accelerometer::{Accelerometer, RawAccelerometer};
+pub use accelerometer::{Accelerometer, RawAccelerometer};
 use embedded_hal::blocking::i2c::{Write, WriteRead};
 
 mod register;
@@ -71,7 +71,7 @@ impl<I2C, E> Lsm6dso<I2C>
         lsm6dso.register_clear_bits(Register::CTRL9_XL, 0b000_0010)?; // I3C_DISABLE
 
         // Block data update
-        lsm6dso.register_set_bits(Register::CTRL3_C, BDU);
+        //lsm6dso.register_set_bits(Register::CTRL3_C, BDU);
 
         lsm6dso.set_mode(Mode::HighPerformance)?;
 
@@ -102,7 +102,7 @@ impl<I2C, E> Lsm6dso<I2C>
     //     })
     // }
 
-    /// Operating mode selection. todo
+    /// Operating mode selection.
     pub fn set_mode(&mut self, mode: Mode) -> Result<(), Error<E>> {
         match mode {
             Mode::Normal => {
@@ -116,7 +116,7 @@ impl<I2C, E> Lsm6dso<I2C>
         Ok(())
     }
 
-    /// Read the current operating mode. todo
+    /// Read the current operating mode
     pub fn get_mode(&mut self) -> Result<Mode, Error<E>> {
         let ctrl = self.read_register(Register::CTRL6_C)?;
 
@@ -124,9 +124,9 @@ impl<I2C, E> Lsm6dso<I2C>
 
 
 
-        let mode = match (is_hp_set) {
-            (true) => Mode::HighPerformance,
-            (false) => Mode::Normal,
+        let mode = match is_hp_set {
+            true => Mode::HighPerformance,
+            false => Mode::Normal,
             _ => return Err(Error::InvalidMode),
         };
 
@@ -271,7 +271,7 @@ impl<I2C, E> Lsm6dso<I2C>
         let mut data = [0u8; 6];
 
         self.i2c
-            .write_read(self.address, &[Register::OUTX_L_A.addr() | 0x80], &mut data)
+            .write_read(self.address, &[Register::OUTX_L_A.addr()], &mut data)
             .map_err(Error::I2C)
             .and(Ok(data))
     }
@@ -311,40 +311,20 @@ impl<I2C, E> Accelerometer for Lsm6dso<I2C>
     fn accel_norm(&mut self) -> Result<F32x3, AccelerometerError<Self::Error>> {
         // The official driver from ST was used as a reference.
         // https://github.com/STMicroelectronics/STMems_Standard_C_drivers/blob/master/lsm6dso_STdC
-        let mode = self.get_mode()?;
         let range = self.get_range()?;
 
-        // See "2.1 Mechanical characteristics" in the datasheet to find the
-        // values below. Scale values have all been divided by 1000 in order
-        // to convert the resulting values from mG to G, while avoiding doing
-        // any actual division on the hardware.
-        let scale = match (mode, range) {
-            // High Resolution mode
-            (Mode::HighPerformance, Range::G2) => 0.001,
-            (Mode::HighPerformance, Range::G4) => 0.002,
-            (Mode::HighPerformance, Range::G8) => 0.004,
-            (Mode::HighPerformance, Range::G16) => 0.012,
-            // Normal mode
-            (Mode::Normal, Range::G2) => 0.004,
-            (Mode::Normal, Range::G4) => 0.008,
-            (Mode::Normal, Range::G8) => 0.016,
-            (Mode::Normal, Range::G16) => 0.048,
-        };
-
-        // Depending on which Mode we are operating in, the data has different
-        // resolution. Using this knowledge, we determine how many bits the
-        // data needs to be shifted. This is necessary because the raw data
-        // is in left-justified two's complement and we would like for it to be
-        // right-justified instead.
-        let shift: u8 = match mode {
-            Mode::HighPerformance => 4, // High Resolution:  12-bit
-            Mode::Normal => 6,         // Normal:           10-bit
+        // factory calibrated sensitivity
+        let scale = match range {
+            Range::G2 => 0.000061,
+            Range::G4 => 0.000122,
+            Range::G8 => 0.000244,
+            Range::G16 => 0.000488,
         };
 
         let acc_raw = self.accel_raw()?;
-        let x = (acc_raw.x >> shift) as f32 * scale;
-        let y = (acc_raw.y >> shift) as f32 * scale;
-        let z = (acc_raw.z >> shift) as f32 * scale;
+        let x = acc_raw.x as f32 * scale;
+        let y = acc_raw.y as f32 * scale;
+        let z = acc_raw.z as f32 * scale;
 
         Ok(F32x3::new(x, y, z))
     }
