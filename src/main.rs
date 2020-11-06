@@ -22,11 +22,12 @@ use a_module_interface::AModule;
 use embedded_hal::digital::v2::{InputPin, OutputPin};
 use stm32f4xx_hal::stm32::I2C1;
 use stm32f4xx_hal::stm32::i2c1::cr1::SMBUS_A::I2C;
+use stm32f4xx_hal::rcc::Clocks;
 use embedded_hal::spi::Mode;
 
-extern crate lsm6dso;
-use lsm6dso::{Lsm6dso, SlaveAddr, RawAccelerometer, Error, Accelerometer};
-use stm32f4xx_hal::rcc::Clocks;
+use lsm6dso::{Lsm6dso, SlaveAddr, Accelerometer};
+use lis2mdl::{Lis2mdl, Magnetometer};
+use stts751::{Stts751, Temperature};
 
 use core::fmt::Write;
 
@@ -74,39 +75,74 @@ fn main() -> ! {
     let i2c = hal::i2c::I2c::i2c1(
         dp.I2C1,
         (scl, sda),
-        KiloHertz(400),
+        KiloHertz(100),
         clocks
     );
 
     cortex_m::iprintln!(stim, "init. sensor start");
-    let mut acc = Lsm6dso::new(
-        i2c,
-        SlaveAddr::Alternate
-    ).expect("LSM3DSO could not be initalized");
+    // let mut acc = Lsm6dso::new(
+    //     i2c,
+    //     SlaveAddr::Alternate
+    // ).expect("LSM3DSO could not be initialized");
+    // cortex_m::iprintln!(stim, "init. sensor finished");
+    // acc.set_range(lsm6dso::Range::G2);
+
+    // todo: not responding i2c bus
+    // let mut mag = Lis2mdl::new(i2c)
+    //     .expect("LIS2MDL could not be initialized");
+    // cortex_m::iprintln!(stim, "init. sensor finished");
+
+    let mut sensor_temp = Stts751::new(i2c)
+        .expect("STTS751 could not be initialized");
     cortex_m::iprintln!(stim, "init. sensor finished");
-    acc.set_range(lsm6dso::Range::G2);
 
     let mut my_object = Stm32Io::new(led, button);
 
     loop {
         my_object.do_something();
-        let acceleration = acc.accel_norm().unwrap();
+        // let acceleration = acc.accel_norm().unwrap();
+        // writeln!(tx,
+        //     "{{\
+        //         \"meas\":\"acc\",\
+        //         \"values\":{{\
+        //             \"x\":{},\
+        //             \"y\":{},\
+        //             \"z\":{}\
+        //         }},\
+        //         \"unit\":\"g\"\
+        //     }}",
+        //     acceleration.x,
+        //     acceleration.y,
+        //     acceleration.z
+        // ).unwrap();
+
+        // let magnetic_field = mag.mag_norm().unwrap();
+        // writeln!(tx,
+        //     "{{\
+        //         \"meas\":\"mag\",\
+        //         \"values\":{{\
+        //             \"x\":{},\
+        //             \"y\":{},\
+        //             \"z\":{}\
+        //         }},\
+        //         \"unit\":\"gauss\"\
+        //     }}",
+        //      magnetic_field.x,
+        //      magnetic_field.y,
+        //      magnetic_field.z
+        // ).unwrap();
+
+        let temp = sensor_temp.temp_norm().unwrap();
         writeln!(tx,
             "{{\
-                \"meas\":\"acc\",\
+                \"meas\":\"temp\",\
                 \"values\":{{\
-                    \"x\":{},\
-                    \"y\":{},\
-                    \"z\":{}\
+                    \"T\":{}\
                 }},\
-                \"unit\":\"g\"\
+                \"unit\":\"°C\"\
             }}",
-            acceleration.x,
-            acceleration.y,
-            acceleration.z
+             temp
         ).unwrap();
         delay.delay_ms(50_u16);
     }
-
-    loop {}
 }

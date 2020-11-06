@@ -25,6 +25,12 @@ features = ["rt", "stm32f446"]
 [dependencies.lsm6dso]
 path = "./crates/lsm6dso"
 
+[dependencies.lis2mdl]
+path = "./crates/lis2mdl"
+
+[dependencies.stts751]
+path = "./crates/stts751"
+
 # this lets you use `cargo fix`!
 [[bin]]
 name = "getting_started"

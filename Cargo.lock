@@ -143,10 +143,21 @@ dependencies = [
  "cortex-m",
  "cortex-m-rt",
  "embedded-hal",
+ "lis2mdl",
  "lsm6dso",
  "panic-halt",
  "panic-itm",
  "stm32f4xx-hal",
+ "stts751",
+]
+
+[[package]]
+name = "lis2mdl"
+version = "0.1.0"
+dependencies = [
+ "embedded-hal",
+ "micromath",
+ "num_enum",
 ]
 
 [[package]]
@@ -305,6 +316,14 @@ dependencies = [
  "rand_core",
  "stm32f4",
  "void",
+]
+
+[[package]]
+name = "stts751"
+version = "0.1.0"
+dependencies = [
+ "embedded-hal",
+ "num_enum",
 ]
 
 [[package]]
