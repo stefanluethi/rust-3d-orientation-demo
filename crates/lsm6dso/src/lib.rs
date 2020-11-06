@@ -7,13 +7,21 @@ use core::fmt::{Debug};
 
 pub use accelerometer;
 use accelerometer::error::Error as AccelerometerError;
-use accelerometer::vector::{F32x3, I16x3};
+use accelerometer::vector::{F32x3, I16x3, Vector};
 pub use accelerometer::{Accelerometer, RawAccelerometer};
 use embedded_hal::blocking::i2c::{Write, WriteRead};
 
 mod register;
 use register::*;
-pub use register::{DataRate, DataStatus, Mode, Range, SlaveAddr};
+pub use register::{
+    AccDataRate,
+    GyroDataRate,
+    DataStatus,
+    AccMode,
+    AccRange,
+    GyroRange,
+    SlaveAddr
+};
 
 /// Accelerometer errors, generic around another error type `E` representing
 /// an (optional) cause of this error.
@@ -71,14 +79,14 @@ impl<I2C, E> Lsm6dso<I2C>
         lsm6dso.register_clear_bits(Register::CTRL9_XL, 0b000_0010)?; // I3C_DISABLE
 
         // Block data update
-        //lsm6dso.register_set_bits(Register::CTRL3_C, BDU);
+        lsm6dso.register_set_bits(Register::CTRL3_C, BDU);
 
-        lsm6dso.set_mode(Mode::HighPerformance)?;
+        // Enable accelerometer
+        lsm6dso.set_acc_mode(AccMode::HighPerformance)?;
+        lsm6dso.set_acc_datarate(AccDataRate::Hz_416)?;
 
-        lsm6dso.set_datarate(DataRate::Hz_416)?;
-
-        // Enable ADCs.
-        //lsm6dso.write_register(Register::TEMP_CFG, ADC_EN)?;
+        // Enable Gyroscope
+        lsm6dso.set_gyro_datarate(GyroDataRate::Hz_416)?;
 
         Ok(lsm6dso)
     }
@@ -88,27 +96,13 @@ impl<I2C, E> Lsm6dso<I2C>
         self.read_register(Register::WHO_AM_I)
     }
 
-    /// X,Y,Z-axis enable. todo obsolete?
-    /// `CTRL_REG1`: `Xen`, `Yen`, `Zen`
-    // fn enable_axis(&mut self, (x, y, z): (bool, bool, bool)) -> Result<(), Error<E>> {
-    //     self.modify_register(Register::CTRL1, |mut ctrl1| {
-    //         ctrl1 &= !(X_EN | Y_EN | Z_EN); // disable all axes
-    //
-    //         ctrl1 |= if x { X_EN } else { 0 };
-    //         ctrl1 |= if y { Y_EN } else { 0 };
-    //         ctrl1 |= if z { Z_EN } else { 0 };
-    //
-    //         ctrl1
-    //     })
-    // }
-
     /// Operating mode selection.
-    pub fn set_mode(&mut self, mode: Mode) -> Result<(), Error<E>> {
+    pub fn set_acc_mode(&mut self, mode: AccMode) -> Result<(), Error<E>> {
         match mode {
-            Mode::Normal => {
+            AccMode::Normal => {
                 self.register_clear_bits(Register::CTRL6_C, 0b0001_0000)?;
             }
-            Mode::HighPerformance => {
+            AccMode::HighPerformance => {
                 self.register_set_bits(Register::CTRL6_C, 0b0001_0000)?;
             }
         }
@@ -117,16 +111,14 @@ impl<I2C, E> Lsm6dso<I2C>
     }
 
     /// Read the current operating mode
-    pub fn get_mode(&mut self) -> Result<Mode, Error<E>> {
+    pub fn get_acc_mode(&mut self) -> Result<AccMode, Error<E>> {
         let ctrl = self.read_register(Register::CTRL6_C)?;
 
         let is_hp_set = (ctrl >> 4) & 0x01 != 0;
 
-
-
         let mode = match is_hp_set {
-            true => Mode::HighPerformance,
-            false => Mode::Normal,
+            true => AccMode::HighPerformance,
+            false => AccMode::Normal,
             _ => return Err(Error::InvalidMode),
         };
 
@@ -134,7 +126,7 @@ impl<I2C, E> Lsm6dso<I2C>
     }
 
     /// Data rate selection.
-    pub fn set_datarate(&mut self, datarate: DataRate) -> Result<(), Error<E>> {
+    pub fn set_acc_datarate(&mut self, datarate: AccDataRate) -> Result<(), Error<E>> {
         self.modify_register(Register::CTRL1_XL, |mut ctrl| {
             ctrl &= !ODR_MASK;
             // Write in new output data rate
@@ -145,15 +137,34 @@ impl<I2C, E> Lsm6dso<I2C>
     }
 
     /// Read the current data selection rate.
-    pub fn get_datarate(&mut self) -> Result<DataRate, Error<E>> {
+    pub fn get_acc_datarate(&mut self) -> Result<AccDataRate, Error<E>> {
         let ctrl = self.read_register(Register::CTRL1_XL)?;
         let odr = (ctrl & ODR_MASK) >> 4;
 
-        DataRate::try_from(odr).map_err(|_| Error::InvalidDataRate)
+        AccDataRate::try_from(odr).map_err(|_| Error::InvalidDataRate)
+    }
+
+    /// Data rate selection.
+    pub fn set_gyro_datarate(&mut self, datarate: GyroDataRate) -> Result<(), Error<E>> {
+        self.modify_register(Register::CTRL2_G, |mut ctrl| {
+            ctrl &= !ODR_MASK;
+            // Write in new output data rate
+            ctrl |= datarate.bits() << 4;
+
+            ctrl
+        })
+    }
+
+    /// Read the current data selection rate.
+    pub fn get_gyro_datarate(&mut self) -> Result<GyroDataRate, Error<E>> {
+        let ctrl = self.read_register(Register::CTRL2_G)?;
+        let odr = (ctrl & ODR_MASK) >> 4;
+
+        GyroDataRate::try_from(odr).map_err(|_| Error::InvalidDataRate)
     }
 
     /// Full-scale selection.
-    pub fn set_range(&mut self, range: Range) -> Result<(), Error<E>> {
+    pub fn set_acc_range(&mut self, range: AccRange) -> Result<(), Error<E>> {
         self.modify_register(Register::CTRL1_XL, |mut ctrl| {
             // Mask off lowest 4 bits
             ctrl &= !FS_MASK;
@@ -165,74 +176,32 @@ impl<I2C, E> Lsm6dso<I2C>
     }
 
     /// Read the current full-scale.
-    pub fn get_range(&mut self) -> Result<Range, Error<E>> {
-        let ctrl = self.read_register(Register::CTRL6_C)?;
+    pub fn get_acc_range(&mut self) -> Result<AccRange, Error<E>> {
+        let ctrl = self.read_register(Register::CTRL1_XL)?;
         let fs = (ctrl & FS_MASK) >> 1;
 
-        Range::try_from(fs).map_err(|_| Error::InvalidRange)
+        AccRange::try_from(fs).map_err(|_| Error::InvalidRange)
     }
 
-    /// Set `REFERENCE` register. todo
-    // pub fn set_ref(&mut self, reference: u8) -> Result<(), Error<E>> {
-    //     self.write_register(Register::REFERENCE, reference)
-    // }
+    /// Full-scale selection.
+    pub fn set_gyro_range(&mut self, range: GyroRange) -> Result<(), Error<E>> {
+        self.modify_register(Register::CTRL2_G, |mut ctrl| {
+            // Mask off lowest 4 bits
+            ctrl &= !0b0000_1110;
+            // Write in new full-scale
+            ctrl |= range.bits() << 1;
 
-    /// Read the `REFERENCE` register. todo
-    // pub fn get_ref(&mut self) -> Result<u8, Error<E>> {
-    //     self.read_register(Register::REFERENCE)
-    // }
+            ctrl
+        })
+    }
 
-    /// Accelerometer data-available status. todo
-    // pub fn get_status(&mut self) -> Result<DataStatus, Error<E>> {
-    //     let stat = self.read_register(Register::STATUS)?;
-    //
-    //     Ok(DataStatus {
-    //         zyxor: (stat & ZYXOR) != 0,
-    //         xyzor: ((stat & XOR) != 0, (stat & YOR) != 0, (stat & ZOR) != 0),
-    //         zyxda: (stat & ZYXDA) != 0,
-    //         xyzda: ((stat & XDA) != 0, (stat & YDA) != 0, (stat & ZDA) != 0),
-    //     })
-    // }
+    /// Read the current full-scale.
+    pub fn get_gyro_range(&mut self) -> Result<GyroRange, Error<E>> {
+        let ctrl = self.read_register(Register::CTRL2_G)?;
+        let fs = (ctrl & 0b0000_1110) >> 1;
 
-    /// Convenience function for `STATUS_REG` to confirm all three X, Y and
-    /// Z-axis have new data available for reading by accel_raw and associated
-    /// function calls.
-    // pub fn is_data_ready(&mut self) -> Result<bool, Error<E>> {
-    //     let value = self.get_status()?;
-    //
-    //     Ok(value.zyxda)
-    // }
-
-    /// Temperature sensor enable. todo
-    /// `TEMP_CGF_REG`: `TEMP_EN`, the BDU bit in `CTRL_REG4` is also set.
-    // pub fn enable_temp(&mut self, enable: bool) -> Result<(), Error<E>> {
-    //     self.register_xset_bits(Register::TEMP_CFG, ADC_EN & TEMP_EN, enable)?;
-    //
-    //     // enable block data update (required for temp reading)
-    //     if enable {
-    //         self.register_xset_bits(Register::CTRL4, BDU, true)?;
-    //     }
-    //
-    //     Ok(())
-    // }
-
-    /// Raw temperature sensor data as `i16`. The temperature sensor __must__
-    /// be enabled via `enable_temp` prior to reading. todo
-    // pub fn get_temp_out(&mut self) -> Result<i16, Error<E>> {
-    //     let out_l = self.read_register(Register::OUT_ADC3_L)?;
-    //     let out_h = self.read_register(Register::OUT_ADC3_H)?;
-    //
-    //     Ok(i16::from_le_bytes([out_l, out_h]))
-    // }
-
-    /// Temperature sensor data converted to `f32`. Output is in degree
-    /// celsius. The temperature sensor __must__ be enabled via `enable_temp`
-    /// prior to reading. todo
-    // pub fn get_temp_outf(&mut self) -> Result<f32, Error<E>> {
-    //     let temp_out = self.get_temp_out()?;
-    //
-    //     Ok(temp_out as f32 / 256.0 + 25.0)
-    // }
+        GyroRange::try_from(fs).map_err(|_| Error::InvalidRange)
+    }
 
     /// Modify a register's value. Read the current value of the register,
     /// update the value with the provided function, and set the register to
@@ -276,6 +245,16 @@ impl<I2C, E> Lsm6dso<I2C>
             .and(Ok(data))
     }
 
+    /// Read from the registers for each of the 3 axes.
+    fn read_gyro_bytes(&mut self) -> Result<[u8; 6], Error<E>> {
+        let mut data = [0u8; 6];
+
+        self.i2c
+            .write_read(self.address, &[Register::OUTX_L_G.addr()], &mut data)
+            .map_err(Error::I2C)
+            .and(Ok(data))
+    }
+
     /// Write a byte to the given register.
     fn write_register(&mut self, register: Register, value: u8) -> Result<(), Error<E>> {
         if register.read_only() {
@@ -298,6 +277,7 @@ impl<I2C, E> Lsm6dso<I2C>
     }
 }
 
+//------------------------------------------------------------------------------
 impl<I2C, E> Accelerometer for Lsm6dso<I2C>
     where
         I2C: WriteRead<Error = E> + Write<Error = E>,
@@ -311,14 +291,14 @@ impl<I2C, E> Accelerometer for Lsm6dso<I2C>
     fn accel_norm(&mut self) -> Result<F32x3, AccelerometerError<Self::Error>> {
         // The official driver from ST was used as a reference.
         // https://github.com/STMicroelectronics/STMems_Standard_C_drivers/blob/master/lsm6dso_STdC
-        let range = self.get_range()?;
+        let range = self.get_acc_range()?;
 
         // factory calibrated sensitivity
         let scale = match range {
-            Range::G2 => 0.000061,
-            Range::G4 => 0.000122,
-            Range::G8 => 0.000244,
-            Range::G16 => 0.000488,
+            AccRange::G2 => 0.000061,
+            AccRange::G4 => 0.000122,
+            AccRange::G8 => 0.000244,
+            AccRange::G16 => 0.000488,
         };
 
         let acc_raw = self.accel_raw()?;
@@ -331,7 +311,7 @@ impl<I2C, E> Accelerometer for Lsm6dso<I2C>
 
     /// Get the sample rate of the accelerometer data.
     fn sample_rate(&mut self) -> Result<f32, AccelerometerError<Self::Error>> {
-        Ok(self.get_datarate()?.sample_rate())
+        Ok(self.get_acc_datarate()?.sample_rate())
     }
 }
 
@@ -351,6 +331,70 @@ impl<I2C, E> RawAccelerometer<I16x3> for Lsm6dso<I2C>
         let x = i16::from_le_bytes(accel_bytes[0..2].try_into().unwrap());
         let y = i16::from_le_bytes(accel_bytes[2..4].try_into().unwrap());
         let z = i16::from_le_bytes(accel_bytes[4..6].try_into().unwrap());
+
+        Ok(I16x3::new(x, y, z))
+    }
+}
+
+//------------------------------------------------------------------------------
+pub trait Gyro {
+    type Error: Debug;
+    fn gyro_norm(&mut self) -> Result<F32x3, AccelerometerError<Self::Error>>;
+    fn sample_rate(&mut self) -> Result<f32, AccelerometerError<Self::Error>>;
+}
+impl<I2C, E> Gyro for Lsm6dso<I2C>
+    where
+        I2C: WriteRead<Error = E> + Write<Error = E>,
+        E: Debug,
+{
+    type Error = Error<E>;
+
+    /// Get normalized ±gauss reading from the magnetometer.
+    fn gyro_norm(&mut self) -> Result<F32x3, AccelerometerError<Self::Error>> {
+        let range = self.get_gyro_range()?;
+
+        // factory calibrated sensitivity
+        let scale = match range {
+            GyroRange::DPS125 => 0.004375,
+            GyroRange::DPS250 => 0.00875,
+            GyroRange::DPS500 => 0.0175,
+            GyroRange::DPS1000 => 0.035,
+            GyroRange::DPS2000 => 0.070,
+        };
+
+        let gyro_raw = self.gyro_raw()?;
+        let x = gyro_raw.x as f32 * scale;
+        let y = gyro_raw.y as f32 * scale;
+        let z = gyro_raw.z as f32 * scale;
+
+        Ok(F32x3::new(x, y, z))
+    }
+
+    /// Get the sample rate of the accelerometer data.
+    fn sample_rate(&mut self) -> Result<f32, AccelerometerError<Self::Error>> {
+        Ok(self.get_acc_datarate()?.sample_rate())
+    }
+}
+
+
+pub trait RawGyro<V: Vector> {
+    type Error: Debug;
+    fn gyro_raw(&mut self) -> Result<V, AccelerometerError<Self::Error>>;
+}
+impl<I2C, E> RawGyro<I16x3> for Lsm6dso<I2C>
+    where
+        I2C: WriteRead<Error = E> + Write<Error = E>,
+        E: Debug,
+{
+    type Error = Error<E>;
+
+    /// Get raw magnetic field data from the magnetometer.
+    fn gyro_raw(&mut self) -> Result<I16x3, AccelerometerError<Self::Error>> {
+        let gyro_bytes = self.read_gyro_bytes()?;
+
+        let x = i16::from_le_bytes(gyro_bytes[0..2].try_into().unwrap());
+        let y = i16::from_le_bytes(gyro_bytes[2..4].try_into().unwrap());
+        let z = i16::from_le_bytes(gyro_bytes[4..6].try_into().unwrap());
 
         Ok(I16x3::new(x, y, z))
     }

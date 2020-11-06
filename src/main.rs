@@ -25,7 +25,8 @@ use stm32f4xx_hal::stm32::i2c1::cr1::SMBUS_A::I2C;
 use stm32f4xx_hal::rcc::Clocks;
 use embedded_hal::spi::Mode;
 
-use lsm6dso::{Lsm6dso, SlaveAddr, Accelerometer};
+use shared_bus::BusManagerSimple;
+use lsm6dso::{Lsm6dso, SlaveAddr, Accelerometer, Gyro};
 use lis2mdl::{Lis2mdl, Magnetometer};
 use stts751::{Stts751, Temperature};
 
@@ -78,21 +79,24 @@ fn main() -> ! {
         KiloHertz(100),
         clocks
     );
+    // create a shared bus
+    let sensor_bus = shared_bus::BusManagerSimple::new(i2c);
 
     cortex_m::iprintln!(stim, "init. sensor start");
-    // let mut acc = Lsm6dso::new(
-    //     i2c,
-    //     SlaveAddr::Alternate
-    // ).expect("LSM3DSO could not be initialized");
-    // cortex_m::iprintln!(stim, "init. sensor finished");
-    // acc.set_range(lsm6dso::Range::G2);
+    let mut sensor_imu = Lsm6dso::new(
+        sensor_bus.acquire_i2c(),
+        SlaveAddr::Alternate
+    ).expect("LSM3DSO could not be initialized");
+    cortex_m::iprintln!(stim, "init. sensor finished");
+    sensor_imu.set_acc_range(lsm6dso::AccRange::G2);
+    sensor_imu.set_gyro_range(lsm6dso::GyroRange::DPS250);
 
     // todo: not responding i2c bus
     // let mut mag = Lis2mdl::new(i2c)
     //     .expect("LIS2MDL could not be initialized");
     // cortex_m::iprintln!(stim, "init. sensor finished");
 
-    let mut sensor_temp = Stts751::new(i2c)
+    let mut sensor_temp = Stts751::new(sensor_bus.acquire_i2c())
         .expect("STTS751 could not be initialized");
     cortex_m::iprintln!(stim, "init. sensor finished");
 
@@ -100,22 +104,36 @@ fn main() -> ! {
 
     loop {
         my_object.do_something();
-        // let acceleration = acc.accel_norm().unwrap();
-        // writeln!(tx,
-        //     "{{\
-        //         \"meas\":\"acc\",\
-        //         \"values\":{{\
-        //             \"x\":{},\
-        //             \"y\":{},\
-        //             \"z\":{}\
-        //         }},\
-        //         \"unit\":\"g\"\
-        //     }}",
-        //     acceleration.x,
-        //     acceleration.y,
-        //     acceleration.z
-        // ).unwrap();
-
+        let acceleration = sensor_imu.accel_norm().unwrap();
+        writeln!(tx,
+            "{{\
+                \"meas\":\"acc\",\
+                \"values\":{{\
+                    \"x\":{},\
+                    \"y\":{},\
+                    \"z\":{}\
+                }},\
+                \"unit\":\"g\"\
+            }}",
+            acceleration.x,
+            acceleration.y,
+            acceleration.z
+        ).unwrap();
+        let angular_velocity = sensor_imu.gyro_norm().unwrap();
+        writeln!(tx,
+                 "{{\
+                     \"meas\":\"gyro\",\
+                     \"values\":{{\
+                         \"x\":{},\
+                         \"y\":{},\
+                         \"z\":{}\
+                     }},\
+                     \"unit\":\"dps\"\
+                 }}",
+                 angular_velocity.x,
+                 angular_velocity.y,
+                 angular_velocity.z
+        ).unwrap();
         // let magnetic_field = mag.mag_norm().unwrap();
         // writeln!(tx,
         //     "{{\

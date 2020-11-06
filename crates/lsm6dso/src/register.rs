@@ -159,21 +159,18 @@ impl Register {
 #[allow(non_camel_case_types)]
 #[derive(Copy, Clone, Debug, Eq, PartialEq, TryFromPrimitive)]
 #[repr(u8)]
-pub enum Range {
+pub enum AccRange {
     /// ±16g
     G16 = 0b01,
-
     /// ±8g
     G8 = 0b11,
-
     /// ±4g
     G4 = 0b10,
-
     /// ±2g (Default)
     G2 = 0b00,
 }
 
-impl Range {
+impl AccRange {
     pub fn bits(self) -> u8 {
         self as u8
     }
@@ -183,63 +180,127 @@ impl Range {
 #[allow(non_camel_case_types)]
 #[derive(Copy, Clone, Debug, Eq, PartialEq, TryFromPrimitive)]
 #[repr(u8)]
-pub enum DataRate {
+pub enum AccDataRate {
     /// 6.66kHz
     Hz_6660 = 0b1010,
-
     /// 3.33kHz
     Hz_3330 = 0b1001,
-
     /// 1.66kHz
     Hz_1660 = 0b1000,
-
     /// 833Hz
     Hz_833 = 0b0111,
-
     /// 416Hz (Default)
     Hz_416 = 0b0110,
-
     /// 208Hz
     Hz_208 = 0b0101,
-
     /// 104Hz
     Hz_104 = 0b0100,
-
     /// 52Hz
     Hz_52 = 0b0011,
-
     /// 26Hz
     Hz_26 = 0b0010,
-
     /// 12.5Hz
     Hz_12_5 = 0b0001,
-
     /// 1.6Hz
     Hz_1_6 = 0b1011,
-
     /// Power down
     PowerDown = 0b0000,
 }
 
-impl DataRate {
+impl AccDataRate {
     pub fn bits(self) -> u8 {
         self as u8
     }
 
     pub fn sample_rate(self) -> f32 {
         match self {
-            DataRate::Hz_6660 => 6660.0,
-            DataRate::Hz_3330 => 3330.0,
-            DataRate::Hz_1660 => 1660.0,
-            DataRate::Hz_833 => 833.0,
-            DataRate::Hz_416 => 416.0,
-            DataRate::Hz_208 => 208.0,
-            DataRate::Hz_104 => 104.0,
-            DataRate::Hz_52 => 52.0,
-            DataRate::Hz_26 => 26.0,
-            DataRate::Hz_12_5 => 12.5,
-            DataRate::Hz_1_6 => 1.6,
-            DataRate::PowerDown => 0.0,
+            AccDataRate::Hz_6660 => 6660.0,
+            AccDataRate::Hz_3330 => 3330.0,
+            AccDataRate::Hz_1660 => 1660.0,
+            AccDataRate::Hz_833 => 833.0,
+            AccDataRate::Hz_416 => 416.0,
+            AccDataRate::Hz_208 => 208.0,
+            AccDataRate::Hz_104 => 104.0,
+            AccDataRate::Hz_52 => 52.0,
+            AccDataRate::Hz_26 => 26.0,
+            AccDataRate::Hz_12_5 => 12.5,
+            AccDataRate::Hz_1_6 => 1.6,
+            AccDataRate::PowerDown => 0.0,
+        }
+    }
+}
+
+
+#[allow(non_camel_case_types)]
+#[derive(Copy, Clone, Debug, Eq, PartialEq, TryFromPrimitive)]
+#[repr(u8)]
+pub enum GyroRange {
+    /// ±2kDPS
+    DPS2000 = 0b110,
+    /// ±1kDPS
+    DPS1000 = 0b100,
+    /// ±500DPS
+    DPS500 = 0b010,
+    /// ±250DPS (Default)
+    DPS250 = 0b000,
+    /// ±125DPS (Default)
+    DPS125 = 0b001,
+}
+
+impl GyroRange {
+    pub fn bits(self) -> u8 {
+        self as u8
+    }
+}
+#[allow(non_camel_case_types)]
+#[derive(Copy, Clone, Debug, Eq, PartialEq, TryFromPrimitive)]
+#[repr(u8)]
+pub enum GyroDataRate {
+    /// 6.66kHz
+    Hz_6660 = 0b1010,
+    /// 3.33kHz
+    Hz_3330 = 0b1001,
+    /// 1.66kHz
+    Hz_1660 = 0b1000,
+    /// 833Hz
+    Hz_833 = 0b0111,
+    /// 416Hz (Default)
+    Hz_416 = 0b0110,
+    /// 208Hz
+    Hz_208 = 0b0101,
+    /// 104Hz
+    Hz_104 = 0b0100,
+    /// 52Hz
+    Hz_52 = 0b0011,
+    /// 26Hz
+    Hz_26 = 0b0010,
+    /// 12.5Hz
+    Hz_12_5 = 0b0001,
+    /// 1.6Hz
+    Hz_6_5 = 0b1011,
+    /// Power down
+    PowerDown = 0b0000,
+}
+
+impl GyroDataRate {
+    pub fn bits(self) -> u8 {
+        self as u8
+    }
+
+    pub fn sample_rate(self) -> f32 {
+        match self {
+            GyroDataRate::Hz_6660 => 6660.0,
+            GyroDataRate::Hz_3330 => 3330.0,
+            GyroDataRate::Hz_1660 => 1660.0,
+            GyroDataRate::Hz_833 => 833.0,
+            GyroDataRate::Hz_416 => 416.0,
+            GyroDataRate::Hz_208 => 208.0,
+            GyroDataRate::Hz_104 => 104.0,
+            GyroDataRate::Hz_52 => 52.0,
+            GyroDataRate::Hz_26 => 26.0,
+            GyroDataRate::Hz_12_5 => 12.5,
+            GyroDataRate::Hz_6_5 => 6.5,
+            GyroDataRate::PowerDown => 0.0,
         }
     }
 }
@@ -279,7 +340,7 @@ pub struct DataStatus {
 /// Operating mode. todo
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
 #[repr(u8)]
-pub enum Mode {
+pub enum AccMode {
     /// High-performance mode
     HighPerformance,
 
