@@ -32,6 +32,9 @@ path = "./crates/lis2mdl"
 [dependencies.stts751]
 path = "./crates/stts751"
 
+[dependencies.kalman_nostd]
+path = "./crates/kalman_nostd"
+
 # this lets you use `cargo fix`!
 [[bin]]
 name = "getting_started"

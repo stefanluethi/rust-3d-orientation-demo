@@ -143,6 +143,7 @@ dependencies = [
  "cortex-m",
  "cortex-m-rt",
  "embedded-hal",
+ "kalman_nostd",
  "lis2mdl",
  "lsm6dso",
  "panic-halt",
@@ -150,6 +151,13 @@ dependencies = [
  "shared-bus",
  "stm32f4xx-hal",
  "stts751",
+]
+
+[[package]]
+name = "kalman_nostd"
+version = "0.1.0"
+dependencies = [
+ "micromath",
 ]
 
 [[package]]
