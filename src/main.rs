@@ -30,6 +30,8 @@ use lsm6dso::{Lsm6dso, SlaveAddr, Accelerometer, Gyro};
 use lis2mdl::{Lis2mdl, Magnetometer};
 use stts751::{Stts751, Temperature};
 
+use kalman_nostd::{Kalman};
+
 use core::fmt::Write;
 
 #[entry]
@@ -101,6 +103,19 @@ fn main() -> ! {
     cortex_m::iprintln!(stim, "init. sensor finished");
 
     let mut my_object = Stm32Io::new(led, button);
+
+    /* Kalman filter */
+    let x: [f32; 2] = [0., 0.];
+    let a = [[0., 0.], [0., 0.]];
+    let c  = [[0., 0.], [0., 0.]];
+    let q_w = [[0., 0.], [0., 0.]];
+    let q_v = [[0., 0.], [0., 0.]];
+    let p = [[0., 0.], [0., 0.]];
+    let k = [[0., 0.], [0., 0.]];
+    let mut kalman = Kalman::new(x, a, c, q_w, q_v, p, k);
+
+    let y = [0., 0.];
+    kalman.update_step(y);
 
     loop {
         my_object.do_something();
