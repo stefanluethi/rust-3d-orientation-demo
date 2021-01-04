@@ -1,13 +1,15 @@
 #![no_std]
 #![feature(const_generics)]
 
-mod linalg;
-use linalg::one::One;
+mod math;
+use math::{one::One, linalg};
 
 use core::ops::{Add, Sub, Mul, Div, Neg};
 use core::mem::MaybeUninit;
 
 /// # Generic Kalman filter
+/// *Note: this crate very generic and extremely inefficient!*
+///
 /// ## Nightly Features
 /// ### Const Generics
 /// A generic Kalman filter must handle vectors and matrices of different sizes.
@@ -47,7 +49,7 @@ use core::mem::MaybeUninit;
 /// ## Reference
 /// M. H. Hayes, "Statistical Digital Signal Processing and Modeling"
 
-#[allow(non_snake_case)]
+#[allow(non_snake_case, non_upper_case_globals)]
 pub struct Kalman<T, const p: usize, const l: usize>
     where
         T: Sized + Copy + Default + Add<Output=T> + Sub<Output=T> + Mul<Output=T> + Div<Output=T>,
@@ -61,7 +63,7 @@ pub struct Kalman<T, const p: usize, const l: usize>
     K: [[T; l]; p],
 }
 
-#[allow(non_snake_case)]
+#[allow(non_snake_case, non_upper_case_globals)]
 impl <T, const p: usize, const l: usize> Kalman<T, {p}, {l}>
     where
         T: Sized + Copy + Default + Add<Output=T> + Sub<Output=T> + Mul<Output=T> + Neg<Output=T> + Div<Output=T> + One
@@ -73,7 +75,7 @@ impl <T, const p: usize, const l: usize> Kalman<T, {p}, {l}>
                Q_v: [[T; l]; l],
                P: [[T; p]; p],
                K:[[T; l]; p]) -> Self {
-        let mut kalman = Kalman {
+        let kalman = Kalman {
             x: x,
             A: A,
             C: C,
@@ -83,18 +85,11 @@ impl <T, const p: usize, const l: usize> Kalman<T, {p}, {l}>
             K: K
         };
 
-        for row in kalman.C.iter() {
-            for cell in row.iter() {
-
-            }
-        }
-
         kalman
     }
 
-    pub fn update_step(&mut self, y: [T; l]) -> ([T; p], [[T; p]; p]) {
+    pub fn update_step(&mut self, y: [T; l]) -> () {
         //let mut x_prior: [T; p] = [Default::default(); p]; // not possible yet
-        let mut x: [T; p];
         let mut x_prior: [T; p];
         let mut P_prior: [[T; p]; p];
 
@@ -109,7 +104,6 @@ impl <T, const p: usize, const l: usize> Kalman<T, {p}, {l}>
         let mut KC: [[T; p]; p];
         let mut I_p: [[T; p]; p];
         unsafe {
-            x = MaybeUninit::uninit().assume_init();
             x_prior = MaybeUninit::uninit().assume_init();
             P_prior = MaybeUninit::uninit().assume_init();
             At = MaybeUninit::uninit().assume_init();
@@ -132,7 +126,7 @@ impl <T, const p: usize, const l: usize> Kalman<T, {p}, {l}>
 
         // x_prior = A * x
         linalg::matrix_times_vector(&self.A, &self.x, &mut x_prior);
-
+		
         // P_prior = A * P * A^T + Q_w
         linalg::matrix_times_matrix(&self.P, &At, &mut PAt);
         linalg::matrix_times_matrix(&self.A, &PAt, &mut P_prior);
@@ -160,7 +154,29 @@ impl <T, const p: usize, const l: usize> Kalman<T, {p}, {l}>
         linalg::matrix_negate(&mut KC);
         linalg::matrix_plus_matrix(&mut KC, &I_p);
         linalg::matrix_times_matrix(&KC, &P_prior, &mut self.P);
-
-        (x, self.P)
     }
 }
+
+#[cfg(test)]
+mod tests {
+	use super::*;
+	
+	#[test]
+	#[ignore]
+	fn test_kalman() {
+   	 	let x_init: [f32; 2] = [0., 0.];
+   	 	let a = [[1., -0.001], [0., 1.]];
+    	let c  = [[1., 0.]];
+    	let q_w = [[0., 0.], [0., 0.]];
+    	let q_v = [[0.]];
+    	let p_init = [[0.0000001, 0.], [0., 0.0000001]];
+    	let k_init = [[0.], [0.]];
+    	let mut kalman = Kalman::new(x_init, a, c, q_w, q_v, p_init, k_init);
+
+    	let y = [10.];
+    	kalman.update_step(y);
+
+		assert_eq!(kalman.x, [0., 0.]);
+	}
+
+} 

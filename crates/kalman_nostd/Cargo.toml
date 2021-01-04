@@ -1,21 +1,8 @@
 [package]
 name = "kalman_nostd"
 version = "0.1.0"
-authors = [" <stefan.luethi@zapp.ch>"]
+authors = ["Stefan Lüthi <stefan.luethi@zapp.ch>"]
 edition = "2018"
-
-[package.metadata.docs.rs]
-rustdoc-args = [
-    "--html-in-header",
-    ".cargo/registry/src/github.com-1ecc6299db9ec823/katex-doc-0.1.0/katex.html",
-]
-
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
 
-
-
-[dependencies.micromath]
-version = "1.1.0"
-features = ["vector"]

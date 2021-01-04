@@ -1,5 +1,3 @@
-use num_enum::TryFromPrimitive;
-
 /// Enumerate all device registers.
 #[allow(dead_code, non_camel_case_types)]
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
@@ -23,7 +21,7 @@ pub enum Register {
     REVISION_ID = 0xFF,
 }
 
-
+#[allow(dead_code)]
 impl Register {
     /// Get register address
     pub fn addr(self) -> u8 {

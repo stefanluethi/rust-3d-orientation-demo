@@ -116,16 +116,20 @@ pub const DEVICE_ADDRESS: u8 = 0x1E;
 // === WHO_AMI_I ===
 
 /// `WHO_AM_I` device identification register
+#[allow(dead_code)]
 pub const DEVICE_ID: u8 = 0x3C;
 
 // some registers we need for this demonstration
 // todo: replace with a type safe register model
 
 // CFG_REG_A
+#[allow(dead_code)]
 pub const COMP_TEMP_EN: u8 = 0b1000_0000;
 // CFG_REG_B
+#[allow(dead_code)]
 pub const OFF_CANC: u8 = 0b0000_0010;
 // CFG_REG_C
+#[allow(dead_code)]
 pub const BDU: u8 = 0b0010_0000;
 
 

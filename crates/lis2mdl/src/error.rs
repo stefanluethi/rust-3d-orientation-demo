@@ -3,7 +3,7 @@
 
 use core::fmt::{self, Debug, Display};
 
-/// Accelerometer errors, generic around another error type `E` representing
+/// Magnetometer errors, generic around another error type `E` representing
 /// an (optional) cause of this error.
 #[derive(Clone, Debug)]
 pub struct Error<E: Debug> {
@@ -50,7 +50,7 @@ impl<E> Error<E>
     }
 }
 
-/// Kinds of accelerometer errors
+/// Kinds of magnetometer errors
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
 pub enum ErrorKind {
     /// Error in the underlying communications bus (e.g. I2C, SPI)

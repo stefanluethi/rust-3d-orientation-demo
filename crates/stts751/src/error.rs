@@ -1,4 +1,4 @@
-//! Magnetometer errors - generic over an inner "cause" type (intended to be
+//! Temperature errors - generic over an inner "cause" type (intended to be
 //! an underlying I2C or SPI error type, if applicable).
 
 use core::fmt::{self, Debug, Display};

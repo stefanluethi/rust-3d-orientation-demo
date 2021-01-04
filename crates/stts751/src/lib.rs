@@ -1,5 +1,8 @@
 #![no_std]
 
+/// Driver for the STTS751 I2C Temperature Sensor
+/// based on the lsm6dso crate
+
 mod register;
 use register::*;
 
@@ -8,9 +11,9 @@ use error::Error as TemperatureError;
 
 use embedded_hal::blocking::i2c::{Write, WriteRead};
 use core::fmt::{Debug};
-use core::convert::{TryInto, TryFrom};
+use core::convert::{TryInto};
 
-/// Accelerometer errors, generic around another error type `E` representing
+/// Temperature errors, generic around another error type `E` representing
 /// an (optional) cause of this error.
 #[derive(Debug)]
 pub enum Error<E> {
@@ -40,6 +43,7 @@ pub struct Stts751<I2C> {
     i2c: I2C,
 }
 
+#[allow(dead_code)]
 impl<I2C, E> Stts751<I2C>
     where
         I2C: WriteRead<Error = E> + Write<Error = E>,
@@ -48,7 +52,7 @@ impl<I2C, E> Stts751<I2C>
     /// Create a new STTS751 driver from the given I2C peripheral. Default is
     /// 10bit, 1Hz, Continuous.
     pub fn new(i2c: I2C) -> Result<Self, Error<E>> {
-        let mut stts751 = Stts751 {
+        let stts751 = Stts751 {
             i2c,
         };
 

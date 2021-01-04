@@ -351,37 +351,36 @@ pub enum AccMode {
 // === WHO_AMI_I (0Fh) ===
 
 /// `WHO_AM_I` device identification register
+#[allow(dead_code)]
 pub const DEVICE_ID: u8 = 0x6C;
 
 // === TEMP_CFG_REG (1Fh) === todo
-
+#[allow(dead_code)]
 pub const ADC_EN: u8 = 0b1000_0000;
+#[allow(dead_code)]
 pub const TEMP_EN: u8 = 0b0100_0000;
 
 // === CTRL1_XL (10h) ===
-
+#[allow(dead_code)]
 pub const ODR_MASK: u8 = 0b1111_0000;
+#[allow(dead_code)]
 pub const FS_MASK: u8 = 0b0000_1100;
+#[allow(dead_code)]
 pub const Z_EN: u8 = 0b0000_0100;
 
 
 // === CTRL3_C (12h) ===
-
+#[allow(dead_code)]
 pub const BOOT: u8 = 0b1000_0000;
+#[allow(dead_code)]
 pub const BDU: u8 = 0b0100_0000;
+#[allow(dead_code)]
 pub const H_LACTIVE: u8 = 0b0010_0000;
+#[allow(dead_code)]
 pub const PP_OD: u8 = 0b0001_0000;
+#[allow(dead_code)]
 pub const SIM: u8 = 0b0000_1000;
+#[allow(dead_code)]
 pub const IF_INC: u8 = 0b0000_0100;
+#[allow(dead_code)]
 pub const SW_RESET: u8 = 0b0000_0001;
-
-// === STATUS_REG (27h) === todo
-
-pub const ZYXOR: u8 = 0b1000_0000;
-pub const ZOR: u8 = 0b0100_0000;
-pub const YOR: u8 = 0b0010_0000;
-pub const XOR: u8 = 0b0001_0000;
-pub const ZYXDA: u8 = 0b0000_1000;
-pub const ZDA: u8 = 0b0000_0100;
-pub const YDA: u8 = 0b0000_0010;
-pub const XDA: u8 = 0b0000_0001;

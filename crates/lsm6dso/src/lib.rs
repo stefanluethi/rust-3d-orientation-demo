@@ -1,6 +1,7 @@
-//! based on https://github.com/BenBergman/lis3dh-rs
-
 #![no_std]
+
+/// Driver for the LSM6DSO I2C Acceleration & Gyro Sensor
+/// based on https://github.com/BenBergman/lis3dh-rs
 
 use core::convert::{TryFrom, TryInto};
 use core::fmt::{Debug};
@@ -12,16 +13,7 @@ pub use accelerometer::{Accelerometer, RawAccelerometer};
 use embedded_hal::blocking::i2c::{Write, WriteRead};
 
 mod register;
-use register::*;
-pub use register::{
-    AccDataRate,
-    GyroDataRate,
-    DataStatus,
-    AccMode,
-    AccRange,
-    GyroRange,
-    SlaveAddr
-};
+pub use register::*;
 
 /// Accelerometer errors, generic around another error type `E` representing
 /// an (optional) cause of this error.
@@ -55,6 +47,7 @@ pub struct Lsm6dso<I2C> {
     address: u8,
 }
 
+#[allow(dead_code)]
 impl<I2C, E> Lsm6dso<I2C>
     where
         I2C: WriteRead<Error = E> + Write<Error = E>,
@@ -79,7 +72,7 @@ impl<I2C, E> Lsm6dso<I2C>
         lsm6dso.register_clear_bits(Register::CTRL9_XL, 0b000_0010)?; // I3C_DISABLE
 
         // Block data update
-        lsm6dso.register_set_bits(Register::CTRL3_C, BDU);
+        lsm6dso.register_set_bits(Register::CTRL3_C, BDU)?;
 
         // Enable accelerometer
         lsm6dso.set_acc_mode(AccMode::HighPerformance)?;
@@ -119,7 +112,6 @@ impl<I2C, E> Lsm6dso<I2C>
         let mode = match is_hp_set {
             true => AccMode::HighPerformance,
             false => AccMode::Normal,
-            _ => return Err(Error::InvalidMode),
         };
 
         Ok(mode)

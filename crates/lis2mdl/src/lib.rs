@@ -1,5 +1,8 @@
 #![no_std]
 
+/// Driver for the LIS2MDL I2C Magnetometer Sensor
+/// based on the lsm6dso crate
+
 mod register;
 use register::*;
 
@@ -11,7 +14,7 @@ use core::fmt::{Debug};
 use core::convert::{TryInto, TryFrom};
 use micromath::vector::{F32x3, I16x3, Vector};
 
-/// Accelerometer errors, generic around another error type `E` representing
+/// Magnetometer errors, generic around another error type `E` representing
 /// an (optional) cause of this error.
 #[derive(Debug)]
 pub enum Error<E> {
@@ -41,6 +44,7 @@ pub struct Lis2mdl<I2C> {
     i2c: I2C,
 }
 
+#[allow(dead_code)]
 impl<I2C, E> Lis2mdl<I2C>
     where
         I2C: WriteRead<Error = E> + Write<Error = E>,
@@ -58,7 +62,7 @@ impl<I2C, E> Lis2mdl<I2C>
         // }
 
         // Enable Block Data Update
-        lis2mdl.register_set_bits(Register::CFG_REG_C, BDU);
+        lis2mdl.register_set_bits(Register::CFG_REG_C, BDU)?;
 
         // Set Output Data Rate
         //lis2mdl.set_data_rate(DataRate::Hz_50);
@@ -191,7 +195,7 @@ impl<I2C, E> Magnetometer for Lis2mdl<I2C>
         Ok(F32x3::new(x, y, z))
     }
 
-    /// Get the sample rate of the accelerometer data.
+    /// Get the sample rate of the magnetometer data.
     fn sample_rate(&mut self) -> Result<f32, MagnetometerError<Self::Error>> {
         Ok(self.get_datarate()?.sample_rate())
     }
