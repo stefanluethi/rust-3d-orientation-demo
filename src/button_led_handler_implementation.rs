@@ -35,9 +35,9 @@ where
             Ok(value) => value,
             Err(_) => false,
         } {
-            self.led.set_high().unwrap_err();
+            self.led.set_high();
         } else {
-            self.led.set_low().unwrap_err();
+            self.led.set_low();
         }
     }
 

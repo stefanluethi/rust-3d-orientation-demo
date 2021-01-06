@@ -5,4 +5,3 @@ authors = ["Stefan Lüthi <stefan.luethi@zapp.ch>"]
 edition = "2018"
 
 [dependencies]
-

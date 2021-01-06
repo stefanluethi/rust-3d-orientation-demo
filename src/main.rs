@@ -27,6 +27,8 @@ use lsm6dso::{Lsm6dso, SlaveAddr, Accelerometer, Gyro};
 use stts751::{Stts751, Temperature};
 use kalman_nostd::{Kalman};
 
+const DELAY_MS: u32 = 100;
+
 #[entry]
 fn main() -> ! {
     // Take hardware peripherals
@@ -58,7 +60,7 @@ fn main() -> ! {
     let (mut tx, _rx) = serial.split();
 
     // itm output
-    let stim = &mut cortex_peripherals.ITM.stim[1];
+    //let stim = &mut cortex_peripherals.ITM.stim[1];
 
     // button to led map module
     let led = gpioa.pa5.into_push_pull_output();
@@ -86,20 +88,18 @@ fn main() -> ! {
 
     let mut sensor_temp = Stts751::new(sensor_bus.acquire_i2c())
         .expect("STTS751 could not be initialized");
-    cortex_m::iprintln!(stim, "init. sensor finished");
 
     // Kalman filter
     let x_init: [f32; 2] = [0., 0.];
-    let p_init = [[0.0000001, 0.], [0., 0.0000001]];
+    let p_init = [[0.001, 0.], [0., 10000.]];
     let k_init = [[0.], [0.]];
     let a = [[1., -0.001], [0., 1.]];
-    let c  = [[1., 0.]];
-    let q_w = [[0., 0.], [0., 0.]];
-    let q_v = [[0.]];
-    let mut kalman = Kalman::new(x_init, a, c, q_w, q_v, p_init, k_init);
-
-    let y = [0.];
-    kalman.update_step(y);
+    let c  = [[0.1, 0.]];
+    let q_w = [[0.007_5, 0.], [0., 0.0001]];
+    let q_v = [[0.001_8]];
+    let mut kalman_x = Kalman::new(x_init, a, c, q_w, q_v, p_init, k_init);
+    let mut kalman_y = Kalman::new(x_init, a, c, q_w, q_v, p_init, k_init);
+    let mut kalman_z = Kalman::new(x_init, a, c, q_w, q_v, p_init, k_init);
 
     let mut angle_gyro = F32x3::new(0., 0., 0.);
 
@@ -109,7 +109,10 @@ fn main() -> ! {
         let acceleration = sensor_imu.accel_norm().unwrap();
         let angular_velocity = sensor_imu.gyro_norm().unwrap();
         let temp = sensor_temp.temp_norm().unwrap();
-        let angle = calc_angles(&acceleration, &angular_velocity, &mut angle_gyro);
+        let mut angle = calc_angles(&acceleration, &angular_velocity, &mut angle_gyro);
+        //angle.x = kalman_x.update_step([angle.x])[0];
+        //angle.y = kalman_y.update_step([angle.y])[0];
+        //angle.z = kalman_z.update_step([angle.z])[0];
 
         // print measurements and orientation in JSON format
         writeln!(tx,
@@ -168,32 +171,34 @@ fn main() -> ! {
                  temp
         ).unwrap();
 
-        delay.delay_ms(100_u16);
+        delay.delay_ms(DELAY_MS);
     }
 }
 
 /// calculate 3D orientation on degrees from angular velocity (°/s) and
 /// acceleration (g)
 fn calc_angles(acc: &F32x3, gyro: &F32x3, angle_gyro: &mut F32x3) -> vector::F32x3 {
+    const TIME_STEP: f32 = DELAY_MS as f32 /1000.;
+    const DEG_PER_RAD: f32 = 57.2958;
     let beta = 0.05;
 
     let mut angle_acc = F32x3::new(0., 0., 0.);
     angle_acc.x = - F32Ext::atan2(
         acc.y,
         F32Ext::sqrt(acc.x.powi(2) + acc.z.powi(2))
-    ) * 57.2958;
+    ) * DEG_PER_RAD;
     angle_acc.y = 90. - F32Ext::atan2(
         acc.z,
         F32Ext::sqrt(acc.x.powi(2) + acc.y.powi(2))
-    ) * 57.2958;
+    ) * DEG_PER_RAD;
     angle_acc.z = F32Ext::atan2(
         acc.x,
         F32Ext::sqrt(acc.y.powi(2) + acc.z.powi(2))
-    ) * 57.2958;
+    ) * DEG_PER_RAD;
 
-    angle_gyro.x += -gyro.x * 0.1;
-    angle_gyro.y += -gyro.y * 0.1;
-    angle_gyro.z += gyro.z * 0.1;
+    angle_gyro.x += -gyro.x * TIME_STEP;
+    angle_gyro.y += -gyro.y * TIME_STEP;
+    angle_gyro.z += gyro.z * TIME_STEP;
 
     // calculate weighted angle from the two sensors
     F32x3::new(

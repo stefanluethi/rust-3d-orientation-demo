@@ -88,7 +88,7 @@ impl <T, const p: usize, const l: usize> Kalman<T, {p}, {l}>
         kalman
     }
 
-    pub fn update_step(&mut self, y: [T; l]) -> () {
+    pub fn update_step(&mut self, y: [T; l]) -> [T; p] {
         //let mut x_prior: [T; p] = [Default::default(); p]; // not possible yet
         let mut x_prior: [T; p];
         let mut P_prior: [[T; p]; p];
@@ -154,6 +154,7 @@ impl <T, const p: usize, const l: usize> Kalman<T, {p}, {l}>
         linalg::matrix_negate(&mut KC);
         linalg::matrix_plus_matrix(&mut KC, &I_p);
         linalg::matrix_times_matrix(&KC, &P_prior, &mut self.P);
+        self.x
     }
 }
 

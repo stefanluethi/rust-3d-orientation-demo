@@ -1,5 +1,5 @@
 [package]
-name = "3d_orientation_bare_metal"
+name = "orientation_bare_metal"
 version = "0.1.0"
 authors = ["Stefan Lüthi <stefan.luethi@outlook.com>"]
 edition = "2018"
@@ -34,7 +34,7 @@ path = "./crates/kalman_nostd"
 
 # this lets you use `cargo fix`!
 [[bin]]
-name = "3d_orientation_bare_metal"
+name = "orientation_bare_metal"
 test = false
 bench = false
 
