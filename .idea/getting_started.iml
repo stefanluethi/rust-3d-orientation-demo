@@ -3,6 +3,14 @@
   <component name="NewModuleRootManager">
     <content url="file://$MODULE_DIR$">
       <sourceFolder url="file://$MODULE_DIR$/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/src/lsm6dso/lsm6dso/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/crates/lis2mdl/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/crates/stts751/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/crates/kalman_nostd/src" isTestSource="false" />
+      <excludeFolder url="file://$MODULE_DIR$/crates/kalman_nostd/target" />
+      <excludeFolder url="file://$MODULE_DIR$/crates/lis2mdl/target" />
+      <excludeFolder url="file://$MODULE_DIR$/crates/stts751/target" />
+      <excludeFolder url="file://$MODULE_DIR$/src/lsm6dso/lsm6dso/target" />
       <excludeFolder url="file://$MODULE_DIR$/target" />
     </content>
     <orderEntry type="inheritedJdk" />
