@@ -33,3 +33,9 @@ cargo build
 ```
 
 Use openocd and gdb to flash and start the application. Be sure to use the configuration provided in the root directory (`openocd.cfg` and `openocd.gdb`).
+
+## Bare-Metal vs RTIC
+
+There are two variants of this application:
+1. A bare-metal implementation in the `master` branch
+2. An implementation using the RTIC framework in the `feature/rtic`  branch
