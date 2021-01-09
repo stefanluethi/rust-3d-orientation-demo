@@ -11,6 +11,10 @@ use cortex_m_rt::entry;
 use stm32f4xx_hal as hal;
 use crate::hal::{prelude::*, stm32};
 use hal::time::KiloHertz;
+use shared_bus_rtic::SharedBus;
+
+use rtic::app;
+use rtic::cyccnt::U32Ext;
 
 use micromath::{F32Ext, vector, vector::F32x3};
 use core::fmt::Write;
@@ -26,96 +30,133 @@ use lsm6dso::{Lsm6dso, SlaveAddr, Accelerometer, Gyro};
 //use lis2mdl::{Lis2mdl, Magnetometer}; // hardware not working
 use stts751::{Stts751, Temperature};
 use kalman_nostd::{Kalman};
+use stm32f4xx_hal::stm32::I2C1;
+use embedded_hal::digital::OutputPin;
 
 const DELAY_MS: u32 = 100;
+const DELAY_TICKS: u32 = 4800000;
 
-#[entry]
-fn main() -> ! {
-    // Take hardware peripherals
-    let stm32_peripherals = stm32::Peripherals::take().expect("cannot take stm32 peripherals");
-    let mut cortex_peripherals = cortex_m::peripheral::Peripherals::take().expect("cannot take cortex peripherals");
+pub struct SharedBusResources<T> where T: 'static {
+    sensor_imu: Lsm6dso<SharedBus<T>>,
+    sensor_temp: Stts751<SharedBus<T>>,
+}
 
-    // delay
-    // Set up the system clock. We want to run at 48MHz for this one.
-    let rcc = stm32_peripherals.RCC.constrain();
-    let clocks = rcc.cfgr.sysclk(48.mhz()).freeze();
+use stm32f4xx_hal::{
+    i2c::I2c,
+    gpio,
+    gpio::{
+        AlternateOD,
+        gpiob,
+    },
+    serial::Tx
+};
+type BusType = hal::i2c::I2c<stm32::I2C1, (gpiob::PB8<AlternateOD<gpio::AF4>>, gpiob::PB9<AlternateOD<gpio::AF4>>)>;
 
-    // Create a delay abstraction based on SysTick
-    let mut delay = hal::delay::Delay::new(cortex_peripherals.SYST, clocks);
+// for some reason the peripheral access crate in the F4 hal is called `stm32`
+#[rtic::app(device = stm32f4xx_hal::stm32, peripherals = true, monotonic = rtic::cyccnt::CYCCNT)]
+const APP: () = {
+    struct Resources {
+        tx: Tx<stm32f4xx_hal::stm32::USART2>,
+        bus_devices: SharedBusResources<BusType>,
+        angle_gyro: F32x3,
+    }
 
-    // gpio's
-    let gpioa = stm32_peripherals.GPIOA.split();
-    let gpiob = stm32_peripherals.GPIOB.split();
-    let gpioc = stm32_peripherals.GPIOC.split();
+    #[init(schedule = [sense_temp, sense_orientation])]
+    fn init(cx: init::Context) -> init::LateResources {
+        let mut core = cx.core;
+        core.DWT.enable_cycle_counter();
 
-    // uart
-    let txd = gpioa.pa2.into_alternate_af7();
-    let rxd = gpioa.pa3.into_alternate_af7();
-    let serial = hal::serial::Serial::usart2(
-        stm32_peripherals.USART2,
-        (txd, rxd),
-        hal::serial::config::Config::default().baudrate(115_200.bps()),
-        clocks
-    ).unwrap();
-    let (mut tx, _rx) = serial.split();
+        // Take hardware peripherals
+        let stm32_peripherals = stm32::Peripherals::take().expect("cannot take stm32 peripherals");
+        let mut cortex_peripherals = cortex_m::peripheral::Peripherals::take().expect("cannot take cortex peripherals");
 
-    // itm output
-    //let stim = &mut cortex_peripherals.ITM.stim[1];
+        // Set up the system clock. We want to run at 48MHz for this one.
+        let rcc = stm32_peripherals.RCC.constrain();
+        let clocks = rcc.cfgr.sysclk(48.mhz()).freeze();
 
-    // button to led map module
-    let led = gpioa.pa5.into_push_pull_output();
-    let button = gpioc.pc13.into_floating_input();
-    let mut button_led_mapper = ButtonLedHandlerImplementation::new(led, button);
+        // gpio's
+        let gpioa = stm32_peripherals.GPIOA.split();
+        let gpiob = stm32_peripherals.GPIOB.split();
+        let gpioc = stm32_peripherals.GPIOC.split();
 
-    // sensors
-    let sda = gpiob.pb9.into_alternate_af4_open_drain();
-    let scl = gpiob.pb8.into_alternate_af4_open_drain();
-    let i2c = hal::i2c::I2c::i2c1(
-        stm32_peripherals.I2C1,
-        (scl, sda),
-        KiloHertz(100),
-        clocks
-    );
-    // create a shared bus, because we have two sensor drivers accessing the bus
-    let sensor_bus = shared_bus::BusManagerSimple::new(i2c);
+        // uart
+        let txd = gpioa.pa2.into_alternate_af7();
+        let rxd = gpioa.pa3.into_alternate_af7();
+        let serial = hal::serial::Serial::usart2(
+            stm32_peripherals.USART2,
+            (txd, rxd),
+            hal::serial::config::Config::default().baudrate(115_200.bps()),
+            clocks
+        ).unwrap();
+        let (mut tx, _rx) = serial.split();
 
-    let mut sensor_imu = Lsm6dso::new(
-        sensor_bus.acquire_i2c(),
-        SlaveAddr::Alternate)
-        .expect("LSM3DSO could not be initialized");
-    sensor_imu.set_acc_range(lsm6dso::AccRange::G2).unwrap();
-    sensor_imu.set_gyro_range(lsm6dso::GyroRange::DPS250).unwrap();
 
-    let mut sensor_temp = Stts751::new(sensor_bus.acquire_i2c())
-        .expect("STTS751 could not be initialized");
+        // button to led map module
+        let led = gpioa.pa5.into_push_pull_output();
+        let button = gpioc.pc13.into_floating_input();
+        let mut button_led_mapper = ButtonLedHandlerImplementation::new(led, button);
 
-    // Kalman filter
-    let x_init: [f32; 2] = [0., 0.];
-    let p_init = [[0.001, 0.], [0., 10000.]];
-    let k_init = [[0.], [0.]];
-    let a = [[1., -0.001], [0., 1.]];
-    let c  = [[0.1, 0.]];
-    let q_w = [[0.007_5, 0.], [0., 0.0001]];
-    let q_v = [[0.001_8]];
-    let mut kalman_x = Kalman::new(x_init, a, c, q_w, q_v, p_init, k_init);
-    let mut kalman_y = Kalman::new(x_init, a, c, q_w, q_v, p_init, k_init);
-    let mut kalman_z = Kalman::new(x_init, a, c, q_w, q_v, p_init, k_init);
+        // sensors
+        let sda = gpiob.pb9.into_alternate_af4_open_drain();
+        let scl = gpiob.pb8.into_alternate_af4_open_drain();
+        let i2c = hal::i2c::I2c::i2c1(
+            stm32_peripherals.I2C1,
+            (scl, sda),
+            KiloHertz(100),
+            clocks
+        );
+        // create a shared bus, because we have two sensor drivers accessing the bus
+        //let sensor_bus = shared_bus::BusManagerSimple::new(i2c);
+        let sensor_bus = shared_bus_rtic::new!(i2c, BusType);
 
-    let mut angle_gyro = F32x3::new(0., 0., 0.);
+        let mut sensor_imu = Lsm6dso::new(
+            sensor_bus.acquire(),
+            SlaveAddr::Alternate)
+            .expect("LSM3DSO could not be initialized");
+        sensor_imu.set_acc_range(lsm6dso::AccRange::G2).unwrap();
+        sensor_imu.set_gyro_range(lsm6dso::GyroRange::DPS250).unwrap();
 
-    loop {
-        button_led_mapper.map_button_to_led();
+        let sensor_temp = Stts751::new(sensor_bus.acquire())
+            .expect("STTS751 could not be initialized");
 
-        let acceleration = sensor_imu.accel_norm().unwrap();
-        let angular_velocity = sensor_imu.gyro_norm().unwrap();
-        let temp = sensor_temp.temp_norm().unwrap();
-        let mut angle = calc_angles(&acceleration, &angular_velocity, &mut angle_gyro);
-        //angle.x = kalman_x.update_step([angle.x])[0];
-        //angle.y = kalman_y.update_step([angle.y])[0];
-        //angle.z = kalman_z.update_step([angle.z])[0];
+        let mut angle_gyro = F32x3::new(0., 0., 0.);
+
+        cx.schedule.sense_temp(cx.start + DELAY_TICKS.cycles()).unwrap();
+        cx.schedule.sense_orientation(cx.start + DELAY_TICKS.cycles()).unwrap();
+
+        init::LateResources {
+            tx: tx,
+            bus_devices: SharedBusResources { sensor_imu, sensor_temp },
+            angle_gyro: angle_gyro,
+        }
+    }
+
+
+    #[task(resources = [bus_devices, tx, angle_gyro], schedule = [sense_temp])]
+    fn sense_temp(cx: sense_temp::Context) {
+        let temp = cx.resources.bus_devices.sensor_temp.temp_norm().unwrap();
+        writeln!(cx.resources.tx,
+                 "{{\
+                 \"meas\":\"temp\",\
+                 \"values\":{{\
+                     \"T\":{}\
+                 }},\
+                 \"unit\":\"°C\"\
+             }}",
+                 temp
+        ).unwrap();
+
+        cx.schedule.sense_temp(cx.scheduled + DELAY_TICKS.cycles()).unwrap();
+    }
+
+    #[task(resources = [bus_devices, tx, angle_gyro], schedule = [sense_orientation])]
+    fn sense_orientation(mut cx: sense_orientation::Context) {
+        let acceleration = cx.resources.bus_devices.sensor_imu.accel_norm().unwrap();
+        let angular_velocity = cx.resources.bus_devices.sensor_imu.gyro_norm().unwrap();
+        let mut angle = calc_angles(&acceleration, &angular_velocity, &mut cx.resources.angle_gyro);
 
         // print measurements and orientation in JSON format
-        writeln!(tx,
+        writeln!(cx.resources.tx,
                  "{{\
                 \"meas\":\"acc\",\
                 \"values\":{{\
@@ -130,7 +171,7 @@ fn main() -> ! {
                  acceleration.z
         ).unwrap();
 
-        writeln!(tx,
+        writeln!(cx.resources.tx,
                  "{{\
                      \"meas\":\"gyro\",\
                      \"values\":{{\
@@ -145,7 +186,7 @@ fn main() -> ! {
                  angular_velocity.z
         ).unwrap();
 
-        writeln!(tx,
+        writeln!(cx.resources.tx,
                  "{{\
                      \"meas\":\"angle\",\
                      \"values\":{{\
@@ -160,20 +201,14 @@ fn main() -> ! {
                  angle.z
         ).unwrap();
 
-        writeln!(tx,
-                 "{{\
-                 \"meas\":\"temp\",\
-                 \"values\":{{\
-                     \"T\":{}\
-                 }},\
-                 \"unit\":\"°C\"\
-             }}",
-                 temp
-        ).unwrap();
-
-        delay.delay_ms(DELAY_MS);
+        cx.schedule.sense_orientation(cx.scheduled + DELAY_TICKS.cycles()).unwrap();
     }
-}
+
+    // external interrupt we use for our tasks
+    extern "C" {
+        fn EXTI0();
+    }
+};
 
 /// calculate 3D orientation on degrees from angular velocity (°/s) and
 /// acceleration (g)
